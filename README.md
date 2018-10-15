@@ -1,2 +1,3 @@
-# the-collector
-collects and displays some data
+# "performance-monitor" repository
+
+Performance metrics tracked via Beacon API

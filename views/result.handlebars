@@ -1,0 +1,594 @@
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<button id="auto" onclick="auto()" type="button"></button>
+
+<div id="stats"></div>
+
+<div id="plots"></div>
+
+<div id="plotsTime"></div>
+
+<div id="tbls"></div>
+
+<script>
+    var interval;
+    const dataURL = "/data";
+    const autoOff = "Auto reload: <strong>OFF</strong>";
+    const autoOn = "Auto reload: <strong>1500ms</strong>";
+
+    var TST = [];
+    var autoToggle = false;
+    var mode = draw;
+    document.all.auto.innerHTML = autoOff;
+
+    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+    function bytesToSize(bytes, nFractDigit) {
+        if (bytes === 0 || typeof bytes === "string") return "N/A";
+        nFractDigit = nFractDigit !== undefined ? nFractDigit : 0;
+        let precision = Math.pow(10, nFractDigit);
+        let i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return Math.round(bytes * precision / Math.pow(1024, i)) / precision + " " + sizes[i];
+    }
+
+    function auto() {
+        autoToggle = !autoToggle;
+        if (autoToggle) {
+            document.all.auto.innerHTML = autoOn;
+        } else {
+            document.all.auto.innerHTML = autoOff;
+        }
+    }
+
+    function main(force) {
+        if (autoToggle || force) {
+            fetch(dataURL)
+                .then(x => x.json())
+                .then(x => {
+                    mode(x);
+                    interval = setTimeout(main, 1500);
+                });
+        } else {
+            interval = setTimeout(main, 1500);
+        }
+    }
+
+    main(true);
+
+    function fixNumbersDiv(x, y) {
+        return (parseFloat(y) / x).toFixed(2);
+    }
+    function fixNumbersMltp(x, y) {
+        return (parseFloat(y) * x).toFixed(2);
+    }
+    const msToS = fixNumbersDiv.bind(null, 1000);
+    const makeTraceObj = (name, size, mode, fill) => {
+        return {
+            fill,
+            x: [],
+            y: [],
+            text: [],
+            name: name,
+            type: "scatter",
+            marker: { size: size || 12 },
+            mode: typeof mode !== "undefined" ? mode : "markers"
+        }
+    }
+    const reduceTracePoints = (a, b) => {
+        a.x.push(msToS(b.events.load.end));
+        a.y.push(msToS(b.events.dom.contentLoadedEnd));
+        a.text.push(
+            `${b.client.platform} ${b.client.browser.name} @ ${b.client.browser.version}
+            ${b.size.transferSizeKB} (KB gzip) @ ${(b.connection.downlink * 0.125).toFixed(2)}MB/s
+            X:${msToS(b.events.load.end)} Y:${msToS(b.events.dom.contentLoadedEnd)}
+            `
+        );
+        return a
+    };
+    const reduceLoadTracePoints = (a, b) => {
+        let c = new Date(b.loggedTimeStamp);
+        a.x.push(`${c.getUTCHours()}:${c.getUTCMinutes()}:${c.getUTCSeconds()}-${c.getUTCDate()}.${c.getUTCMonth() + 1}`);
+        a.y.push(msToS(b.events.load.end));
+        a.text.push(`${b.client.platform} ${b.client.browser.name} @ ${b.client.browser.version}
+            ${b.size.transferSizeKB} (KB gzip) @ ${(b.connection.downlink * 0.125).toFixed(2)}MB/s
+            LOAD :${msToS(b.events.load.end)} DOM:${msToS(b.events.dom.contentLoadedEnd)}`);
+        return a;
+    };
+
+    function draw(x) {
+        TST = x;
+
+        x = x.sort((b, a) => a.metrics.events.load.end - b.metrics.events.load.end);
+
+        /*
+        let median = x.length * 80 / 100;
+        median = (x.length - median) / 2;
+
+        x = x.splice(median, x.length - median);
+        */
+
+        let h = `
+                    <br/>
+                    <br/>
+                    <table>
+                        <colgroup>
+                            <col span="1" style="">
+                            <col span="1" style="">
+                            <col span="4" style="">
+                            <col span="3" style="">
+                            <col span="2" style="">
+                            <col span="6" style="background-color: rgba(255, 255, 0, 0.05);">
+                            <col span="4" style="">
+                            <col span="3" style="">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th rowspan="3">GUID</th>
+                                <th rowspan="3">Domain / Path</th>
+                                <th colspan="4">Client</th>
+                                <th colspan="3">Connection</th>
+                                <th colspan="2">Body Size (KB)</th>
+                                <th colspan="6">Events (sec.)</th>
+                                <th colspan="4">Meta (sec.)</th>
+                                <th colspan="3">Network (sec.)</th>
+                            </tr>
+                            <tr>
+                                <th rowspan="2">Browser@V</th>
+                                <th rowspan="2">Platform<br/>OS<br/>Device</th>
+                                <th rowspan="2">CPU Threads</th>
+                                <th rowspan="2">RAM <br/> (used / total / limit)</th>
+                                <th rowspan="2">Downlink (MB/s)</th>
+                                <th rowspan="2">Type</th>
+                                <th rowspan="2">Ping (ms.)</th>
+                                <th rowspan="2">Transferred<br/> (initial / total)</th>
+                                <th rowspan="2">Decoded<br/> (initial / total)</th>
+                                <th colspan="3">DOM</th>
+                                <th colspan="2">Paint</th>
+                                <th>Load</th>
+                                <th rowspan="2">Req Start</th>
+                                <th rowspan="2">Res Start</th>
+                                <th rowspan="2">Res End</th>
+                                <th rowspan="2">Duration</th>
+                                <th rowspan="2">DNS</th>
+                                <th rowspan="2">TCP</th>
+                                <th rowspan="2">Conn</th>
+                            </tr>
+                            <tr>
+                                <th>DOMContentLoaded</th>
+                                <th>Interactive</th>
+                                <th>Completed</th>
+                                <th>First</th>
+                                <th>Contentful</th>
+                                <th>Completed</th>
+                            </tr>
+                        </thead>
+                    ${
+            x
+                .map(y => y.metrics)
+                .slice(0, 50)
+                .map(m => {
+                    let fp = msToS(m.events.paint["first-paint"]);
+                    let fcp = msToS(m.events.paint["first-contentful-paint"]);
+                    let lc = msToS(m.events.load.end);
+
+                    // if paint data is missing
+                    // assume worst case scenario
+                    // and take Load event as both
+                    fp = isNaN(fp) ? lc : fp;
+                    fcp = isNaN(fcp) ? lc : fcp;
+
+                    return `<tr>
+                            <td>${m.guid}</td>
+                            <td>
+                                ${m.domain}<br />
+                                <em>${m.path || "N/A"}</em><br />
+                                ${m.client.countryCode}
+                            </td>
+                            <td>${m.client.browser.name} @ ${m.client.browser.version}</td>
+                            <td>
+                                ${m.client.platform} <br/>
+                                ${m.client.os.name} @ ${m.client.os.version}<br/>
+                                ${m.client.device.type} / ${m.client.device.model}
+                            </td>
+                            <td>${m.client.hardwareConcurrency}</td>
+                            <td>
+                                ${bytesToSize(m.memory.usedJSHeapSize)} /
+                                ${bytesToSize(m.memory.totalJSHeapSize)} /
+                                ${bytesToSize(m.memory.jsHeapSizeLimit)}
+                            </td>
+                            <td>${(m.connection.downlink * 0.125).toFixed(2)}</td>
+                            <td>${m.connection.effectiveType}</td>
+                            <td>${m.connection.rtt}</td>
+                            <td>${m.size.transferSizeKB}<br/>${m.size.totalTransferSizeKB || "N/A"}</td>
+                            <td>${m.size.decodedBodySizeKB}</br>${m.size.totalDecodedBodySizeKB || "N/A"}</td>
+                            <td>${msToS(m.events.dom.contentLoadedEnd)}</td>
+                            <td>${msToS(m.events.dom.interactive)}</td>
+                            <td>${msToS(m.events.dom.completed)}</td>
+                            <td>${fp}</td>
+                            <td>${fcp}</td>
+                            <td>${lc}</td>
+                            <td>${msToS(m.meta.requestStart)}</td>
+                            <td>${msToS(m.meta.responseStart)}</td>
+                            <td>${msToS(m.meta.responseEnd)}</td>
+                            <td>${msToS(m.meta.responseEnd - m.meta.requestStart)}</td>
+                            <td>${msToS(m.network.dnsLookup.end - m.network.dnsLookup.start)}</td>
+                            <td>${msToS(m.network.tcpTime.end - m.network.tcpTime.start)}</td>
+                            <td>${msToS(m.network.secureConnection.end - m.network.secureConnection.start)}</td>
+                        </tr>`;
+                }).join("")
+            }
+                    </table>
+                `
+
+        document.all.tbls.innerHTML = h;
+
+        let x1 = x
+            .map(y => { return { ...y.metrics, loggedTimeStamp: y.loggedTimeStamp } })
+            // .filter(a => a.connection &&
+            //    a.connection.effectiveType &&
+            //    a.connection.effectiveType.match("4g"))
+            .sort((a, b) => a.loggedTimeStamp - b.loggedTimeStamp);
+
+        let byLoadTime = x1
+            .slice()
+            .sort((a, b) => a.events.load.end - b.events.load.end);
+
+        let byDomTime = x1
+            .slice()
+            .sort((a, b) => a.events.dom.contentLoadedEnd - b.events.dom.contentLoadedEnd);
+
+        let byFirstContentPaint = x1
+            .filter(y => typeof y.events.paint["first-contentful-paint"] === "number")
+            .sort((a, b) => a.events.paint["first-contentful-paint"] - b.events.paint["first-contentful-paint"]);
+
+        let byFirstPaint = x1
+            .filter(y => typeof y.events.paint["first-paint"] === "number")
+            .sort((a, b) => a.events.paint["first-paint"] - b.events.paint["first-paint"]);
+
+        let byDownLink = x1
+            .slice()
+            .sort((a, b) => a.connection.downlink - b.connection.downlink);
+
+        let layout = {
+            xaxis: {
+                range: [0, 2, 3, 5, 10, 20, 30]
+            },
+            yaxis: {
+                range: [0, 10]
+            },
+            title: `${x1.length} samples => X: Loaded | Y: DOMContentLoaded`
+        };
+
+        let n4g = x1
+            .filter(a => a.connection &&
+                a.connection.effectiveType &&
+                a.connection.effectiveType.match("4g"))
+
+        let n3g = x1
+            .filter(a => a.connection &&
+                a.connection.effectiveType &&
+                a.connection.effectiveType.match("3g"))
+
+        let n2g = x1
+            .filter(a => a.connection &&
+                a.connection.effectiveType &&
+                a.connection.effectiveType.match("2g"))
+
+        let nNAg = x1
+            .filter(a => a.connection &&
+                a.connection.effectiveType &&
+                (a.connection.effectiveType.match("N/A") || a.connection.effectiveType === undefined))
+
+        let trace1 = makeTraceObj(`4g (${n4g.length})`);
+        let trace2 = makeTraceObj(`3g (${n3g.length})`);
+        let trace3 = makeTraceObj(`2g (${n2g.length})`);
+        let trace4 = makeTraceObj(`N/A (${nNAg.length})`);
+        let trace5 = makeTraceObj(`All (${x1.length})`, 6);
+
+        n4g.reduce(reduceTracePoints, trace1);
+        n3g.reduce(reduceTracePoints, trace2);
+        n2g.reduce(reduceTracePoints, trace3);
+        nNAg.reduce(reduceTracePoints, trace4);
+        x1.reduce(reduceTracePoints, trace5);
+
+        Plotly.newPlot(
+            "plots",
+            [trace1, trace2, trace3, trace4, trace5],
+            layout
+        );
+
+        let trcTime4 = makeTraceObj(`4g (${n4g.length})`, 4);
+        let trcTime3 = Object.create(trcTime4);
+        trcTime3.name = "Bar";
+        trcTime3.mode = "bar";
+        trcTime3.type = "bar";
+        trcTime4.name = "Dots";
+
+        n4g.reduce(reduceLoadTracePoints, trcTime3);
+
+        Plotly.newPlot(
+            "plotsTime",
+            [trcTime3],
+            {
+                title: `${n4g.length} samples, 4G only => X: Loaded | Y: Time`
+            }
+        );
+
+        let h1 = `
+                <table style="float:left; margin-right: 20px;">
+                    <tr>
+                        <th>First paint</th>
+                        <th>${byFirstPaint.length} samples</th>
+                    </tr>
+                    <tr>
+                        <td>Less than 1.5 s.</td>
+                        <td>${
+            (byFirstPaint
+                .filter(x => x.events.paint["first-paint"] < 1500).length / byFirstPaint.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 1.5 - 3 s.</td>
+                        <td>${
+            (byFirstPaint
+                .filter(x => x.events.paint["first-paint"] >= 1500 &&
+                    x.events.paint["first-paint"] <= 3000).length / byFirstPaint.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 3 - 4 s.</td>
+                        <td>${
+            (byFirstPaint
+                .filter(x => x.events.paint["first-paint"] > 3000 &&
+                    x.events.paint["first-paint"] <= 4000).length / byFirstPaint.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 4 - 5 s.</td>
+                        <td>${
+            (byFirstPaint
+                .filter(x => x.events.paint["first-paint"] > 4000 &&
+                    x.events.paint["first-paint"] <= 5000).length / byFirstPaint.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Above 5 s.</td>
+                        <td>${
+            (byFirstPaint
+                .filter(x => x.events.paint["first-paint"] > 5000).length / byFirstPaint.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                </table>
+
+
+                <table style="float:left; margin-right: 20px;">
+                    <tr>
+                        <th>DOMContentLoaded</th>
+                        <th>${byDomTime.length} samples</th>
+                    </tr>
+                    <tr>
+                        <td>Less than 1.5 s.</td>
+                        <td>${
+            (byDomTime
+                .filter(x => x.events.dom.contentLoadedEnd < 1500).length / byDomTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 1.5 - 3 s.</td>
+                        <td>${
+            (byDomTime
+                .filter(x => x.events.dom.contentLoadedEnd >= 1500 &&
+                    x.events.dom.contentLoadedEnd <= 3000).length / byDomTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 3 - 4 s.</td>
+                        <td>${
+            (byDomTime
+                .filter(x => x.events.dom.contentLoadedEnd > 3000 &&
+                    x.events.dom.contentLoadedEnd <= 4000).length / byDomTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 4 - 5 s.</td>
+                        <td>${
+            (byDomTime
+                .filter(x => x.events.dom.contentLoadedEnd > 4000 &&
+                    x.events.dom.contentLoadedEnd <= 5000).length / byDomTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Above 5 s.</td>
+                        <td>${
+            (byDomTime
+                .filter(x => x.events.dom.contentLoadedEnd > 5000).length / byDomTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                </table>
+
+                <table style="float:left; margin-right: 20px;">
+                    <tr>
+                        <th>Page Interactive</th>
+                        <th>${byDomTime.length} samples</th>
+                    </tr>
+                    <tr>
+                        <td>Less than 1.5 s.</td>
+                        <td>${
+            (byDomTime
+                .filter(x => x.events.dom.interactive < 1500).length / byDomTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 1.5 - 3 s.</td>
+                        <td>${
+            (byDomTime
+                .filter(x => x.events.dom.interactive >= 1500 &&
+                    x.events.dom.interactive <= 3000).length / byDomTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 3 - 4 s.</td>
+                        <td>${
+            (byDomTime
+                .filter(x => x.events.dom.interactive > 3000 &&
+                    x.events.dom.interactive <= 4000).length / byDomTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 4 - 5 s.</td>
+                        <td>${
+            (byDomTime
+                .filter(x => x.events.dom.interactive > 4000 &&
+                    x.events.dom.interactive <= 5000).length / byDomTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Above 5 s.</td>
+                        <td>${
+            (byDomTime
+                .filter(x => x.events.dom.interactive > 5000).length / byDomTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                </table>
+                <table style="float:left; margin-right: 20px;">
+                    <tr>
+                        <th>First contentful paint</th>
+                        <th>${byFirstContentPaint.length} samples</th>
+                    </tr>
+                    <tr>
+                        <td>Less than 1.5 s.</td>
+                        <td>${
+            (byFirstContentPaint
+                .filter(x => x.events.paint["first-contentful-paint"] < 1500).length / byFirstContentPaint.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 1.5 - 3 s.</td>
+                        <td>${
+            (byFirstContentPaint
+                .filter(x => x.events.paint["first-contentful-paint"] >= 1500 &&
+                    x.events.paint["first-contentful-paint"] <= 3000).length / byFirstContentPaint.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 3 - 4 s.</td>
+                        <td>${
+            (byFirstContentPaint
+                .filter(x => x.events.paint["first-contentful-paint"] > 3000 &&
+                    x.events.paint["first-contentful-paint"] <= 4000).length / byFirstContentPaint.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 4 - 5 s.</td>
+                        <td>${
+            (byFirstContentPaint
+                .filter(x => x.events.paint["first-contentful-paint"] > 4000 &&
+                    x.events.paint["first-contentful-paint"] <= 5000).length / byFirstContentPaint.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Above 5 s.</td>
+                        <td>${
+            (byFirstContentPaint
+                .filter(x => x.events.paint["first-contentful-paint"] > 5000).length / byFirstContentPaint.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                </table>
+                <table style="float:left; margin-right: 20px;">
+                    <tr>
+                        <th>Load</th>
+                        <th>${byLoadTime.length} samples</th>
+                    </tr>
+                    <tr>
+                        <td>Less than 1.5 s.</td>
+                        <td>${
+            (byLoadTime
+                .filter(x => x.events.load.end < 1500).length / byLoadTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 1.5 - 3 s.</td>
+                        <td>${
+            (byLoadTime
+                .filter(x => x.events.load.end >= 1500 &&
+                    x.events.load.end <= 3000).length / byLoadTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 3 - 4 s.</td>
+                        <td>${
+            (byLoadTime
+                .filter(x => x.events.load.end > 3000 &&
+                    x.events.load.end <= 4000).length / byLoadTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Between 4 - 5 s.</td>
+                        <td>${
+            (byLoadTime
+                .filter(x => x.events.load.end > 4000 &&
+                    x.events.load.end <= 5000).length / byLoadTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                    <tr>
+                        <td>Above 5 s.</td>
+                        <td>${
+            (byLoadTime
+                .filter(x => x.events.load.end > 5000).length / byLoadTime.length * 100
+            )
+                .toFixed(2)
+            }%</td>
+                    </tr>
+                </table>
+                `;
+
+        document.all.stats.innerHTML = h1;
+    }
+</script>

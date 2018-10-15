@@ -1,0 +1,76 @@
+{
+    "rules": {
+        "forin": true,
+        "curly": true,
+        "new-parens": true,
+        "label-position": true,
+        "unified-signatures": true,
+        "prefer-object-spread": false,
+        "semicolon": [
+            false,
+            "never"
+        ],
+        "quotemark": [
+            true,
+            "double"
+        ],
+        "indent": [
+            true,
+            "spaces",
+            4
+        ],
+        "arrow-return-shorthand": true,
+        "linebreak-style": [
+            true,
+            "LF"
+        ],
+        "object-literal-shorthand": true,
+        "cyclomatic-complexity": [
+            true,
+            16
+        ],
+        "triple-equals": [
+            true,
+            "allow-undefined-check"
+        ],
+        "prefer-template": [
+            false,
+            "allow-single-concat"
+        ],
+        "object-literal-key-quotes": [
+            true,
+            "as-needed"
+        ],
+        "max-classes-per-file": [
+            true,
+            1,
+            "exclude-class-expressions"
+        ],
+        "whitespace": [
+            true,
+            "check-branch",
+            "check-operator",
+            "check-typecast"
+        ],
+        "no-arg": true,
+        "no-debugger": true,
+        "no-bitwise": false,
+        "no-misused-new": true,
+        "no-null-keyword": true,
+        "no-duplicate-super": true,
+        "no-internal-module": true,
+        "no-floating-promises": true,
+        "no-non-null-assertion": true,
+        "no-mergeable-namespace": true,
+        "no-trailing-whitespace": true,
+        "no-irregular-whitespace": true,
+        "no-duplicate-switch-case": true,
+        "no-conditional-assignment": true,
+        "no-consecutive-blank-lines": true,
+        "no-invalid-template-strings": true,
+        "no-duplicate-variable": [
+            true,
+            "check-parameters"
+        ]
+    }
+}

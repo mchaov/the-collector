@@ -1,0 +1,9 @@
+.idea
+node_modules/
+.cache-loader/
+yarn.lock
+.yarnclean
+yarn-error.log
+docs/*
+linter/*
+coverage/*
