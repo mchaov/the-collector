@@ -99,13 +99,6 @@
 
         x = x.sort((b, a) => a.metrics.events.load.end - b.metrics.events.load.end);
 
-        /*
-        let median = x.length * 80 / 100;
-        median = (x.length - median) / 2;
-
-        x = x.splice(median, x.length - median);
-        */
-
         let h = `
                     <br/>
                     <br/>
@@ -223,9 +216,6 @@
 
         let x1 = x
             .map(y => { return { ...y.metrics, loggedTimeStamp: y.loggedTimeStamp } })
-            // .filter(a => a.connection &&
-            //    a.connection.effectiveType &&
-            //    a.connection.effectiveType.match("4g"))
             .sort((a, b) => a.loggedTimeStamp - b.loggedTimeStamp);
 
         let byLoadTime = x1
