@@ -6,7 +6,6 @@ import { addToDom } from "./addToDom";
 import { hashString } from "../helpers";
 import { reportEvent } from "./reportEvent";
 
-// used for perf polyfill for devices which don't support it
 var timesStart = Date.now();
 var timesDOM = 0;
 const GUID = hashString(`${timesStart}-${location.host}-${location.pathname}`);
