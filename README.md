@@ -1,3 +1,3 @@
-# "performance-monitor" repository
+# the-collector
 
-Performance metrics tracked via Beacon API
+Collecting stuff with modern web APIs :)
